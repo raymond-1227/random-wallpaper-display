@@ -1,0 +1,108 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Random Wallhaven Wallpaper</title>
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css"
+      rel="stylesheet"
+    />
+  </head>
+  <body
+    class="bg-black h-screen w-screen overflow-hidden relative select-none"
+    ondblclick="forceRefresh()"
+  >
+    <img
+      id="bg"
+      class="absolute inset-0 w-full h-full object-cover opacity-0 transition-opacity duration-1000 ease-in-out"
+    />
+
+    <script>
+      const el = document.getElementById("bg");
+      const PROXY = "https://corsproxy.io/?";
+      const API =
+        "https://wallhaven.cc/api/v1/search?q=id:41&categories=100&purity=100&sorting=random&atleast=1920x1080";
+
+      // Fetch Image
+      async function fetchImage() {
+        console.log("Starting refresh sequence...");
+        try {
+          const seed = Math.random().toString(36).substring(7);
+          const url = `${PROXY}${encodeURIComponent(`${API}&seed=${seed}`)}`;
+
+          const res = await fetch(url);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+          const data = await res.json();
+          if (!data.data.length) throw new Error("No images found");
+
+          const newUrl = data.data[0].path;
+          console.log(`Image fetched: ${newUrl}`);
+
+          // Preload
+          const img = new Image();
+          img.src = newUrl;
+          img.onload = () => {
+            el.classList.remove("opacity-100"); // Fade out
+
+            setTimeout(() => {
+              el.src = newUrl;
+              el.classList.add("opacity-100"); // Fade in
+
+              localStorage.setItem("url", newUrl);
+              localStorage.setItem("time", Date.now());
+              console.log("Wallpaper updated successfully.");
+            }, 1000);
+          };
+        } catch (e) {
+          console.error("Refresh failed:", e);
+          if (!el.src || el.src.includes("placehold")) {
+            el.src =
+              "https://placehold.co/1920x1080/000/FFF?text=Failed+to+load+image";
+            el.classList.add("opacity-100");
+          }
+        }
+      }
+
+      // Force Refresh (Double clicking anywhere also triggers this)
+      window.forceRefresh = function () {
+        console.log("Force refresh triggered.");
+        fetchImage();
+      };
+
+      // Scheduler
+      function schedule() {
+        const now = new Date();
+        const delay =
+          (60 - now.getMinutes()) * 60000 -
+          now.getSeconds() * 1000 -
+          now.getMilliseconds();
+        console.log(
+          `Next auto-refresh in ${Math.floor(delay / 60000)} minutes.`,
+        );
+
+        setTimeout(() => {
+          fetchImage();
+          schedule();
+        }, delay);
+      }
+
+      // Initialization
+      const cachedUrl = localStorage.getItem("url");
+      const lastTime = localStorage.getItem("time");
+      const isValid = lastTime && Date.now() - lastTime < 3600000;
+
+      if (isValid && cachedUrl) {
+        console.log("Loading cached image.");
+        el.src = cachedUrl;
+        setTimeout(() => el.classList.add("opacity-100"), 50);
+      } else {
+        console.log("Cache expired or empty. Fetching new image.");
+        fetchImage();
+      }
+
+      schedule();
+    </script>
+  </body>
+</html>
